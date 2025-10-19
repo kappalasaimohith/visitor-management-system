@@ -1,0 +1,10 @@
+postman
+.env
+.env.local
+.env.development.local
+
+
+node_modules
+dist
+sql
+postman_collection.json
