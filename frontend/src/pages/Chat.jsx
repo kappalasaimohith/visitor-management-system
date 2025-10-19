@@ -3,6 +3,8 @@ import axios from "axios";
 import Navbar from "../components/Navbar";
 import { supabase } from "../supabaseClient";
 
+const apiurl= import.meta.env.VITE_API_URL || '';
+
 export default function Chat() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
@@ -19,7 +21,7 @@ export default function Chat() {
       const token = sessionData?.session?.access_token;
       if (!token) return;
 
-      const resp = await fetch('/api/visitors', { 
+      const resp = await fetch(`${apiurl}/api/visitors`, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
       const data = await resp.json();
@@ -50,7 +52,7 @@ export default function Chat() {
       
       const fullMessage = userInput + visitorContext;
       
-      const res = await axios.post('/api/chat', 
+      const res = await axios.post(`${apiurl}/api/chat`, 
         { message: fullMessage }, 
         { headers: { Authorization: `Bearer ${token}` } }
       );
