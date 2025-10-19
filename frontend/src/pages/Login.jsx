@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 
+console.log('API URL:', import.meta.env.VITE_API_URL);
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
