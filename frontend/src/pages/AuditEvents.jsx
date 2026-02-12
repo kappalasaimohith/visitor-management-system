@@ -9,7 +9,7 @@ export default function AuditEvents() {
     fetchEvents();
     const sub = supabase
       .channel('events-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
         fetchEvents();
       })
       .subscribe();
@@ -26,50 +26,72 @@ export default function AuditEvents() {
       const resp = await fetch(`${API}/api/events`, { headers: { Authorization: `Bearer ${token}` } });
       const j = await resp.json();
       if (!resp.ok) return console.error(j);
+      
       const raw = j.events || [];
-
-      // Batch resolve actor display names and visitor subjects
       const actorIds = [...new Set(raw.map(r => r.actor_user_id).filter(Boolean))];
       const subjectIds = [...new Set(raw.map(r => r.subject_id).filter(Boolean))];
 
       const usersRes = actorIds.length ? await supabase.from('users').select('id, display_name').in('id', actorIds) : { data: [] };
-      const visitorsRes = subjectIds.length ? await supabase.from('visitors').select('id, name, purpose').in('id', subjectIds) : { data: [] };
+      const visitorsRes = subjectIds.length ? await supabase.from('visitors').select('id, name').in('id', subjectIds) : { data: [] };
 
-      const users = usersRes?.data || [];
-      const visitors = visitorsRes?.data || [];
-      const usersMap = Object.fromEntries(users.map(u => [u.id, u.display_name]));
-      const visitorsMap = Object.fromEntries(visitors.map(v => [v.id, v]));
+      const usersMap = Object.fromEntries((usersRes.data || []).map(u => [u.id, u.display_name]));
+      const visitorsMap = Object.fromEntries((visitorsRes.data || []).map(v => [v.id, v.name]));
 
-      const enriched = raw.map((e) => {
-        const actorName = (e.actor_user_id && usersMap[e.actor_user_id]) || e.payload?.actorName || e.payload?.actor?.display_name || 'Unknown';
-        const visitorRecord = e.subject_id ? visitorsMap[e.subject_id] : (e.payload?.visitor || e.payload?.subject || null);
-        const subjectPurpose = visitorRecord?.purpose || e.payload?.purpose || (visitorRecord?.name ? visitorRecord.name : null);
-        const visitorName = visitorRecord?.name || null;
-        return { ...e, actorName, subjectPurpose, visitorName };
-      });
+      const enriched = raw.map((e) => ({
+        ...e,
+        actorName: (e.actor_user_id && usersMap[e.actor_user_id]) || e.payload?.actorName || 'System',
+        visitorName: (e.subject_id && visitorsMap[e.subject_id]) || e.payload?.visitor?.name || '—'
+      }));
 
       setEvents(enriched);
     } catch (err) { console.error(err); }
   };
 
   return (
-    <div>
+    <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="p-6">
-        <h1 className="text-2xl mb-4">Audit Events</h1>
-        <div className="space-y-2">
-          {events.map((e) => {
-            const note = e.payload?.note || e.payload?.reason || null;
-            return (
-              <div key={e.id} className="border p-2">
-                <div className="text-sm text-gray-500">{new Date(e.created_at).toLocaleString()} · {e.type}</div>
-                <div><strong>Actor:</strong> {e.actorName || 'Unknown'}</div>
-                <div><strong>Subject:</strong> {e.subjectPurpose || (e.visitorName ? e.visitorName : '—')}</div>
-                {e.visitorName && <div className="text-sm">Visitor: {e.visitorName}</div>}
-                {note && <div className="mt-1 text-sm text-gray-700">{note}</div>}
-              </div>
-            );
-          })}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Audit Log</h1>
+        
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actor</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</th>
+                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {events.map((e) => (
+                  <tr key={e.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(e.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                         {e.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                       {e.actorName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                       {e.visitorName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                       <div className="max-w-xs truncate" title={JSON.stringify(e.payload)}>
+                          {e.payload?.note || e.payload?.reason || '-'}
+                       </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

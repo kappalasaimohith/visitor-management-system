@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Navbar from "../components/Navbar";
 import Profile from "./Profile";
+
 export default function Dashboard() {
   const [visitors, setVisitors] = useState([]);
   const [profile, setProfile] = useState(null);
@@ -13,7 +14,6 @@ export default function Dashboard() {
     const init = async () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const uid = sessionData?.session?.user?.id;
-      console.log('Dashboard init, uid=', uid);
       if (!uid) {
         navigate('/');
         return;
@@ -24,7 +24,7 @@ export default function Dashboard() {
   }, []);
 
   const fetchVisitors = async () => {
-    const { data, error } = await supabase.from("visitors").select("*");
+    const { data, error } = await supabase.from("visitors").select("*").order('created_at', { ascending: false });
     if (error) console.error(error);
     else setVisitors(data);
   };
@@ -38,7 +38,6 @@ export default function Dashboard() {
     else setProfile(data);
   };
 
-  // ✅ Handle account deletion and logout
   const handleDeleteAccount = async () => {
     const confirmed = confirm('Delete your account? This is irreversible.');
     if (!confirmed) return;
@@ -47,7 +46,7 @@ export default function Dashboard() {
       const API = import.meta.env.VITE_API_URL || '';
       const resp = await fetch(`${API}/api/users/delete`, {
         method: 'POST',
-        credentials: 'include', // optional, if server supports cookie auth
+        credentials: 'include',
       });
 
       if (!resp.ok) throw new Error('Delete failed');
@@ -57,66 +56,114 @@ export default function Dashboard() {
     }
 
     try {
-      await supabase.auth.signOut({ scope: 'global' }); // clears all sessions
+      await supabase.auth.signOut({ scope: 'global' });
     } catch (err) {
       console.error('Logout failed:', err);
     }
-
     window.location.href = '/';
   };
 
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'checked-in': return 'bg-blue-100 text-blue-800';
+      case 'checked-out': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
-    <div>
+    <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">Visitors</h1>
-          {/* <Profile /> */}
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-500 mt-1">Overview of your visitors and activity</p>
+          </div>
           <button
-            className="bg-blue-500 text-white px-3 py-1 rounded"
+            className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm"
             onClick={() => {
               fetchProfile();
               setShowProfile(true);
             }}
           >
-            Profile
+            Manage Profile
           </button>
         </div>
 
-        {visitors.map((v) => (
-          <div key={v.id} className="border p-3 mb-2 rounded flex justify-between">
-            <div>
-              <p>{v.name}</p>
-              <p className="text-sm text-gray-500">{v.purpose}</p>
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Visitors</h2>
+          {visitors.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-100">
+              <p className="text-gray-500">No visitors found.</p>
             </div>
-            <span className="text-sm">{v.status}</span>
-          </div>
-
-        ))}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {visitors.map((v) => (
+                <div key={v.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 p-5">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{v.name}</h3>
+                      <p className="text-sm text-gray-500">{v.purpose}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(v.status)}`}>
+                      {v.status}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 border-t border-gray-50 pt-3 flex justify-between">
+                    <span>{new Date(v.created_at).toLocaleDateString()}</span>
+                    <span>{v.phone}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {showProfile && profile && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-            <div className="bg-white p-6 rounded w-96">
-              <h2 className="text-xl font-bold mb-2">Profile</h2>
-                <Profile />
-              <div className="mt-4 flex justify-end">
-                <button
-                  className="bg-red-600 text-white px-3 py-1 rounded mr-2"
-                  onClick={handleDeleteAccount}
-                >
-                  Delete Account
-                </button>
-                <button
-                  className="bg-gray-300 px-3 py-1 rounded"
-                  onClick={() => setShowProfile(false)}
-                >
-                  Close
-                </button>
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div className="absolute inset-0 bg-gray-500 opacity-0" onClick={() => setShowProfile(false)}></div>
+              </div>
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+              <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div className="bg-white p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900">Your Profile</h3>
+                    <button onClick={() => setShowProfile(false)} className="text-gray-400 hover:text-gray-500">
+                      <span className="text-2xl">&times;</span>
+                    </button>
+                  </div>
+                  <div className="mt-2">
+                    <Profile />
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <button
+                    type="button"
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm"
+                    onClick={handleDeleteAccount}
+                  >
+                    Delete Account
+                  </button>
+                  <button
+                    type="button"
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                    onClick={() => setShowProfile(false)}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
