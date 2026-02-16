@@ -4,7 +4,7 @@
  * Run with: node seed.js (ensure SUPABASE_API_URL and SUPABASE_API_SERVICE_ROLE_KEY are set)
  */
 import 'dotenv/config';
-import supabaseAdmin from './src/supabaseClient.js';
+import supabaseAdmin from '../src/supabaseClient.js';
 import crypto from 'crypto';
 
 async function run() {

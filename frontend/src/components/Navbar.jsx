@@ -1,9 +1,10 @@
 import { Link, useLocation } from "react-router-dom";
 import { supabase, getUserProfile } from "../supabaseClient";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export default function Navbar() {
   const [profile, setProfile] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -13,9 +14,13 @@ export default function Navbar() {
     })();
   }, []);
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const logout = async () => {
     try {
-      await supabase.auth.signOut({ scope: 'global' });
+      await supabase.auth.signOut({ scope: "global" });
       localStorage.clear();
       sessionStorage.clear();
     } catch (error) {
@@ -27,54 +32,107 @@ export default function Navbar() {
 
   const isActive = (path) => location.pathname === path;
 
-  const NavItem = ({ to, label }) => (
+  const links = useMemo(() => {
+    const items = [{ to: "/dashboard", label: "Dashboard" }];
+
+    if (profile && profile.role !== "guard" && profile.role !== "admin") {
+      items.push(
+        { to: "/visitor", label: "Create Visitor" },
+        { to: "/resident-visitors", label: "My Visitors" }
+      );
+    }
+
+    items.push(
+      { to: "/guard-visitors", label: "Gate" },
+      { to: "/chat", label: "AI Copilot" },
+      { to: "/broadcasts", label: "Broadcasts" }
+    );
+
+    if (profile && profile.role === "admin") items.push({ to: "/audit", label: "Audit" });
+    return items;
+  }, [profile]);
+
+  const NavItem = ({ to, label, mobile = false }) => (
     <Link
       to={to}
-      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${isActive(to)
-          ? "bg-blue-50 text-blue-700"
-          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-        }`}
+      className={[
+        "rounded-lg text-sm font-medium transition-colors",
+        mobile ? "px-3 py-2" : "px-3 py-2",
+        isActive(to)
+          ? "bg-slate-900 text-white"
+          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50",
+      ].join(" ")}
     >
       {label}
     </Link>
   );
 
+  const initial = (profile?.display_name?.trim()?.[0] || "U").toUpperCase();
+
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm">
+    <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <div className="flex items-center">
-            <Link to="/dashboard" className="text-xl font-bold text-gray-800 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/dashboard"
+              className="text-lg font-semibold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600"
+            >
               VMS
             </Link>
-            <div className="hidden md:ml-10 md:flex md:space-x-4">
-              <NavItem to="/dashboard" label="Dashboard" />
-              {profile && profile.role !== 'guard' && profile.role !== 'admin' && (
-                <>
-                  <NavItem to="/visitor" label="Create Visitor" />
-                  <NavItem to="/resident-visitors" label="My Visitors" />
-                </>
-              )}
-              <NavItem to="/guard-visitors" label="Gate" />
-              <NavItem to="/chat" label="AI Copilot" />
-              <NavItem to="/broadcasts" label="Broadcasts" />
-              {profile && profile.role === 'admin' && (
-                <NavItem to="/audit" label="Audit" />
-              )}
+
+            <div className="hidden md:flex md:space-x-1">
+              {links.map((l) => (
+                <NavItem key={l.to} to={l.to} label={l.label} />
+              ))}
             </div>
           </div>
-          <div className="flex items-center">
-            <div className="hidden md:block mr-4 text-sm text-gray-500">
-              {profile?.display_name}
+
+          <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2">
+              <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-semibold text-slate-700">
+                {initial}
+              </div>
+              <div className="text-sm text-slate-600">{profile?.display_name}</div>
             </div>
+
             <button
               onClick={logout}
-              className="ml-4 bg-white text-red-600 border border-red-200 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              className="hidden md:inline-flex bg-white text-rose-700 border border-rose-200 hover:bg-rose-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             >
               Logout
             </button>
+
+            <button
+              type="button"
+              className="md:hidden inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-expanded={mobileOpen}
+              aria-label="Toggle menu"
+            >
+              Menu
+            </button>
           </div>
         </div>
+
+        {mobileOpen && (
+          <div className="md:hidden pb-4">
+            <div className="mt-2 rounded-2xl border border-slate-200 bg-white shadow-sm p-2 flex flex-col gap-1">
+              {links.map((l) => (
+                <NavItem key={l.to} to={l.to} label={l.label} mobile />
+              ))}
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              <button
+                onClick={logout}
+                className="w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );

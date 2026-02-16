@@ -12,6 +12,9 @@ export default function VisitorForm() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -20,98 +23,135 @@ export default function VisitorForm() {
     })();
   }, []);
 
-  const handleSubmit = async () => {
-    if (profile?.role === 'guard') return alert('Guards cannot create visitors');
-    const sessionResp = await supabase.auth.getSession();
-    const accessToken = sessionResp?.data?.session?.access_token || sessionResp?.session?.access_token || null;
-    if (!accessToken) return alert('Please sign in again');
+  const toIsoFromDeviceLocalDateTime = (value) => {
+    // value is from <input type="datetime-local"> => "YYYY-MM-DDTHH:mm"
+    if (!value) return null;
+    const [datePart, timePart] = String(value).split("T");
+    if (!datePart || !timePart) return null;
 
+    const [y, m, d] = datePart.split("-").map(Number);
+    const [hh, mm] = timePart.split(":").map(Number);
+    if (![y, m, d, hh, mm].every((n) => Number.isFinite(n))) return null;
+
+    // Construct as device-local time explicitly
+    const dt = new Date(y, m - 1, d, hh, mm, 0, 0);
+    if (Number.isNaN(dt.getTime())) return null;
+    return dt.toISOString();
+  };
+
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setFormError("");
+
+    if (profile?.role === "guard") return alert("Guards cannot create visitors");
+    if (!name.trim()) return setFormError("Visitor name is required.");
+    if (!purpose.trim()) return setFormError("Purpose is required.");
+
+    const sessionResp = await supabase.auth.getSession();
+    const accessToken =
+      sessionResp?.data?.session?.access_token || sessionResp?.session?.access_token || null;
+    if (!accessToken) return alert("Please sign in again");
+
+    setSubmitting(true);
     try {
-      const API = import.meta.env.VITE_API_URL || '';
+      const API = import.meta.env.VITE_API_URL || "";
       const resp = await fetch(`${API}/api/visitors/create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ name, phone, purpose, scheduled_time: scheduled_time ? new Date(scheduled_time).toISOString() : null }),
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          purpose: purpose.trim(),
+          scheduled_time: toIsoFromDeviceLocalDateTime(scheduled_time),
+        }),
       });
 
       if (!resp.ok) {
         const text = await resp.text();
-        console.error('Create visitor failed', text);
-        return alert('Failed to create visitor');
+        console.error("Create visitor failed", text);
+        setFormError("Failed to create visitor.");
+        return;
       }
 
-      alert('Visitor created!');
-      setName('');
-      setPhone('');
-      setPurpose('');
-      setScheduledTime('');
-
-      if (notifyHost) {
-        // notification logic here (omitted for brevity)
-      }
+      setName("");
+      setPhone("");
+      setPurpose("");
+      setScheduledTime("");
+      alert("Visitor created!");
     } catch (err) {
-      console.error('API error', err);
-      alert('Error creating visitor');
+      console.error("API error", err);
+      setFormError("Error creating visitor.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleChatSend = async () => {
-    if (!chatInput) return;
-    const API = import.meta.env.VITE_API_URL || '';
+    if (!chatInput.trim() || chatLoading) return;
+
+    const API = import.meta.env.VITE_API_URL || "";
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) {
+      setChatMessages((m) => [...m, { from: "bot", text: "Please sign in again." }]);
+      return;
+    }
 
-    const userMsg = { from: 'user', text: chatInput };
-    setChatMessages(m => [...m, userMsg]);
-    setChatInput('');
+    const msgText = chatInput.trim();
+    setChatMessages((m) => [...m, { from: "user", text: msgText }]);
+    setChatInput("");
+    setChatLoading(true);
 
     try {
       const resp = await fetch(`${API}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ message: chatInput }),
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ message: msgText }),
       });
       const data = await resp.json().catch(() => null);
-      const botText = data?.reply || data?.message || 'No response';
-      setChatMessages(m => [...m, { from: 'bot', text: botText }]);
+      const botText = data?.reply || data?.message || "No response";
+      setChatMessages((m) => [...m, { from: "bot", text: botText }]);
     } catch (err) {
-      console.error('Chat error', err);
-      setChatMessages(m => [...m, { from: 'bot', text: 'Error: could not reach chat service' }]);
+      console.error("Chat error", err);
+      setChatMessages((m) => [...m, { from: "bot", text: "Error: could not reach chat service" }]);
+    } finally {
+      setChatLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <Navbar />
       <div className="max-w-2xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="bg-blue-600 px-6 py-4">
-            <h1 className="text-xl font-bold text-white">Create Visitor Pass</h1>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5">
+            <h1 className="text-xl font-semibold tracking-tight text-white">Create Visitor Pass</h1>
             <p className="text-blue-100 text-sm">Schedule a visit or create an instant pass</p>
           </div>
 
           <div className="p-8 space-y-6">
+            {formError && (
+              <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {formError}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Visitor Name</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Visitor Name</label>
                 <input
                   placeholder="Enter name"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-colors"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
                 <input
+                  type="tel"
                   placeholder="Enter phone"
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-colors"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                 />
@@ -119,20 +159,20 @@ export default function VisitorForm() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Purpose of Visit</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Purpose of Visit</label>
               <input
                 placeholder="e.g. Delivery, Guest, Maintenance"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-colors"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300"
                 value={purpose}
                 onChange={(e) => setPurpose(e.target.value)}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Time (Optional)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Scheduled Time (Optional)</label>
               <input
                 type="datetime-local"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-colors"
+                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300"
                 value={scheduled_time}
                 onChange={(e) => setScheduledTime(e.target.value)}
               />
@@ -144,26 +184,31 @@ export default function VisitorForm() {
                 id="notify"
                 checked={notifyHost}
                 onChange={(e) => setNotifyHost(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
               />
-              <label htmlFor="notify" className="ml-2 block text-sm text-gray-900">
-                Notify me on creation
+              <label htmlFor="notify" className="ml-2 block text-sm text-slate-800">
+                Notify host on creation
               </label>
             </div>
 
-            <div className="pt-4 flex items-center justify-between border-t border-gray-50">
+            <div className="pt-4 flex items-center justify-between border-t border-slate-100">
               <button
                 onClick={() => setChatOpen(true)}
-                className="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center"
+                className="text-blue-700 hover:text-blue-800 font-medium text-sm"
+                type="button"
               >
-                <span className="mr-1">✨</span> Use AI Copilot
+                Use AI Copilot
               </button>
 
               <button
                 onClick={handleSubmit}
-                className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md font-medium"
+                disabled={submitting}
+                className={`px-6 py-2.5 rounded-lg transition font-medium ${
+                  submitting ? "bg-blue-300 text-white cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                }`}
+                type="button"
               >
-                Create Pass
+                {submitting ? "Creating..." : "Create Pass"}
               </button>
             </div>
           </div>
@@ -172,13 +217,15 @@ export default function VisitorForm() {
 
       {chatOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[500px]">
-            <div className="bg-gray-800 p-4 flex justify-between items-center text-white">
-              <h3 className="font-semibold">AI Assistant</h3>
-              <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[520px] border border-slate-200">
+            <div className="bg-slate-900 p-4 flex justify-between items-center text-white">
+              <h3 className="font-semibold tracking-tight">AI Assistant</h3>
+              <button onClick={() => setChatOpen(false)} className="text-slate-300 hover:text-white" type="button">
+                ✕
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-3">
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-3">
               {chatMessages.length === 0 && (
                 <div className="text-center text-gray-500 mt-20">
                   <p className="mb-2">👋 How can I help?</p>
@@ -197,18 +244,27 @@ export default function VisitorForm() {
               ))}
             </div>
 
-            <div className="p-4 bg-white border-t border-gray-100 flex gap-2">
+            <div className="p-4 bg-white border-t border-slate-200 flex gap-2">
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleChatSend(); }}
-                className="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleChatSend();
+                }}
+                className="flex-1 border border-slate-200 rounded-full px-4 py-2 text-sm outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300"
                 placeholder="Type a message..."
                 autoFocus
+                disabled={chatLoading}
               />
               <button
                 onClick={handleChatSend}
-                className="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-700 transition"
+                disabled={chatLoading || !chatInput.trim()}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
+                  chatLoading || !chatInput.trim()
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+                type="button"
               >
                 ➝
               </button>

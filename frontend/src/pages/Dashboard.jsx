@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [visitors, setVisitors] = useState([]);
   const [profile, setProfile] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [loadingVisitors, setLoadingVisitors] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -15,18 +16,20 @@ export default function Dashboard() {
       const { data: sessionData } = await supabase.auth.getSession();
       const uid = sessionData?.session?.user?.id;
       if (!uid) {
-        navigate('/');
+        navigate("/", { replace: true });
         return;
       }
       fetchVisitors();
     };
     init();
-  }, []);
+  }, [navigate]);
 
   const fetchVisitors = async () => {
-    const { data, error } = await supabase.from("visitors").select("*").order('created_at', { ascending: false });
+    setLoadingVisitors(true);
+    const { data, error } = await supabase.from("visitors").select("*").order("created_at", { ascending: false });
     if (error) console.error(error);
-    else setVisitors(data);
+    else setVisitors(data || []);
+    setLoadingVisitors(false);
   };
 
   const fetchProfile = async () => {
@@ -74,8 +77,15 @@ export default function Dashboard() {
     }
   };
 
+  const formatDeviceDate = (ts) => {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return String(ts);
+    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -96,10 +106,27 @@ export default function Dashboard() {
         </div>
 
         <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Recent Visitors</h2>
-          {visitors.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-100">
-              <p className="text-gray-500">No visitors found.</p>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Visitors</h2>
+
+          {loadingVisitors ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                  <div className="animate-pulse">
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="h-4 w-36 bg-slate-100 rounded" />
+                      <div className="h-5 w-20 bg-slate-100 rounded-full" />
+                    </div>
+                    <div className="mt-3 h-3 w-2/3 bg-slate-100 rounded" />
+                    <div className="mt-5 h-px bg-slate-100" />
+                    <div className="mt-3 h-3 w-28 bg-slate-100 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : visitors.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-slate-200">
+              <p className="text-slate-600">No visitors found.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -115,7 +142,7 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <div className="text-xs text-gray-400 border-t border-gray-50 pt-3 flex justify-between">
-                    <span>{new Date(v.created_at).toLocaleDateString()}</span>
+                    <span>{formatDeviceDate(v.created_at)}</span>
                     <span>{v.phone}</span>
                   </div>
                 </div>
@@ -128,7 +155,10 @@ export default function Dashboard() {
           <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
               <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                <div className="absolute inset-0 bg-gray-500 opacity-0" onClick={() => setShowProfile(false)}></div>
+                <div
+                  className="absolute inset-0 bg-black/40"
+                  onClick={() => setShowProfile(false)}
+                />
               </div>
               <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
               <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">

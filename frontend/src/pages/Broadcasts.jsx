@@ -11,12 +11,14 @@ export default function Broadcasts() {
     fetchBroadcasts();
     checkAdminRole();
     const sub = supabase
-      .channel('broadcasts-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'broadcasts' }, () => {
+      .channel("broadcasts-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "broadcasts" }, () => {
         fetchBroadcasts();
       })
       .subscribe();
-    return () => { supabase.removeChannel(sub); };
+    return () => {
+      supabase.removeChannel(sub);
+    };
   }, []);
 
   const checkAdminRole = async () => {
@@ -35,6 +37,7 @@ export default function Broadcasts() {
   };
 
   const fetchBroadcasts = async () => {
+    setLoading(true);
     try {
       const sessionResp = await supabase.auth.getSession();
       const token = sessionResp?.data?.session?.access_token;
@@ -46,7 +49,18 @@ export default function Broadcasts() {
       });
       const data = await resp.json();
       if (resp.ok) setBroadcasts(data.broadcasts || []);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDeviceDate = (ts) => {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return String(ts);
+    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(d);
   };
 
   const sendBroadcast = async (e) => {
@@ -88,13 +102,18 @@ export default function Broadcasts() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <Navbar />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Announcements</h1>
+        <div className="flex items-end justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Announcements</h1>
+            <p className="text-sm text-slate-500 mt-1">Community updates and urgent notices.</p>
+          </div>
+        </div>
 
         {isAdmin && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Post Announcement</h2>
             <form onSubmit={sendBroadcast} className="space-y-4">
               <div>
@@ -130,28 +149,51 @@ export default function Broadcasts() {
           </div>
         )}
 
-        <div className="space-y-4">
-          {broadcasts.length === 0 ? (
-            <div className="text-center py-10 text-gray-500 bg-white rounded-xl border border-gray-100">
-              No announcements yet.
-            </div>
-          ) : (
-            broadcasts.map((b) => (
-              <div key={b.id} className={`bg-white rounded-xl shadow-sm border border-l-4 p-5 ${b.is_urgent ? 'border-l-red-500 border-gray-200 bg-red-50/10' : 'border-l-blue-500 border-gray-200'
-                }`}>
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className={`font-bold text-lg ${b.is_urgent ? 'text-red-700' : 'text-gray-900'}`}>
-                    {b.is_urgent && '🚨 '}{b.title}
+        {loading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <div className="animate-pulse">
+                  <div className="h-4 w-48 bg-slate-100 rounded" />
+                  <div className="mt-3 h-3 w-full bg-slate-100 rounded" />
+                  <div className="mt-2 h-3 w-5/6 bg-slate-100 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : broadcasts.length === 0 ? (
+          <div className="text-center py-10 text-slate-500 bg-white rounded-2xl border border-slate-200">
+            No announcements yet.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {broadcasts.map((b) => (
+              <div
+                key={b.id}
+                className={`bg-white rounded-2xl shadow-sm border p-5 ${
+                  b.is_urgent ? "border-rose-200 bg-rose-50/30" : "border-slate-200"
+                }`}
+              >
+                <div className="flex justify-between items-start gap-4 mb-2">
+                  <h3 className={`font-semibold text-lg ${b.is_urgent ? "text-rose-700" : "text-slate-900"}`}>
+                    {b.title}
                   </h3>
-                  <span className="text-xs text-gray-400">
-                    {new Date(b.created_at).toLocaleDateString()}
+                  <span className="text-xs text-slate-400 shrink-0">
+                    {formatDeviceDate(b.created_at)}
                   </span>
                 </div>
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{b.message}</p>
+
+                {b.is_urgent && (
+                  <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 mb-3">
+                    Urgent
+                  </span>
+                )}
+
+                <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{b.message}</p>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

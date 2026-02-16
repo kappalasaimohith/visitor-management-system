@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 
@@ -13,20 +13,21 @@ export default function Register() {
     householdName: "",
     role: "resident",
   });
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [cooldownSec, setCooldownSec] = useState(0);
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const isResident = useMemo(() => formData.role === "resident", [formData.role]);
+
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    if (formData.role === 'resident') {
+    if (isResident) {
       if (!formData.flatNo || !/^R-\d{3}$/.test(formData.flatNo)) {
         setError("Room/Household No is required (Format: R-001)");
         setLoading(false);
@@ -100,20 +101,20 @@ export default function Register() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-tr from-blue-50 via-white to-purple-50 px-4 py-8">
-      <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-lg border border-gray-100">
+      <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-lg border border-slate-200">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Create Account</h1>
-          <p className="text-gray-500 mt-2">Join the community</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Create Account</h1>
+          <p className="text-slate-500 mt-2 text-sm">Join the community</p>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 text-sm border border-red-100">
+          <div className="bg-rose-50 text-rose-700 p-4 rounded-lg mb-6 text-sm border border-rose-100">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
               <input
@@ -164,15 +165,25 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              name="password"
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-colors"
-              placeholder="••••••••"
-              required
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+            <div className="relative">
+              <input
+                type={showPw ? "text" : "password"}
+                name="password"
+                onChange={handleChange}
+                className="w-full border border-slate-200 rounded-lg px-4 py-2.5 pr-20 focus:outline-none focus:ring-4 focus:ring-slate-100 focus:border-slate-300 transition-colors"
+                placeholder="••••••••"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 border border-slate-200"
+              >
+                {showPw ? "Hide" : "Show"}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">Use a strong password you don’t reuse elsewhere.</p>
           </div>
 
           {formData.role === 'resident' && (
@@ -208,10 +219,9 @@ export default function Register() {
           <button
             type="submit"
             disabled={loading || cooldownSec > 0}
-            className={`w-full py-3 rounded-lg text-white font-semibold transition-all shadow-md ${loading || cooldownSec > 0
-                ? "bg-blue-300 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 hover:shadow-lg"
-              }`}
+            className={`w-full py-3 rounded-lg text-white font-semibold transition-all shadow-sm ${
+              loading || cooldownSec > 0 ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
             {loading ? "Creating Account..." : cooldownSec > 0 ? `Wait ${cooldownSec}s` : "Register"}
           </button>

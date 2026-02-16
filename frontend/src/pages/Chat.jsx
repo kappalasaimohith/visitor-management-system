@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import Navbar from "../components/Navbar";
 import { supabase } from "../supabaseClient";
@@ -10,10 +10,15 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
 
   useEffect(() => {
     fetchVisitors();
   }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   const fetchVisitors = async () => {
     try {
@@ -36,10 +41,11 @@ export default function Chat() {
   const handleSend = async () => {
     if (!input.trim() || loading) return;
     setLoading(true);
-    const userMsg = { from: 'user', text: input };
-    setMessages(m => [...m, userMsg]);
+
+    const userMsg = { from: "user", text: input };
+    setMessages((m) => [...m, userMsg]);
     const userInput = input;
-    setInput('');
+    setInput("");
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -57,7 +63,7 @@ export default function Chat() {
       );
 
       const botText = res.data.reply || res.data.result || res.data.message || 'Done';
-      setMessages(m => [...m, { from: 'bot', text: botText }]);
+      setMessages((m) => [...m, { from: 'bot', text: botText }]);
 
       if (res.data.result) {
         setTimeout(fetchVisitors, 1000);
@@ -65,7 +71,7 @@ export default function Chat() {
     } catch (err) {
       console.error('Chat error:', err);
       const errorMsg = err?.response?.data?.error || err.message || 'Could not reach AI service';
-      setMessages(m => [...m, { from: 'bot', text: `Error: ${errorMsg}` }]);
+      setMessages((m) => [...m, { from: 'bot', text: `Error: ${errorMsg}` }]);
     } finally {
       setLoading(false);
     }
@@ -79,18 +85,18 @@ export default function Chat() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white">
       <Navbar />
 
       <div className="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col h-[calc(100vh-64px)]">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 flex-1 flex flex-col overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
 
           <div className="bg-white border-b border-gray-100 p-4">
             <h1 className="text-lg font-bold text-gray-800">AI Copilot</h1>
             <p className="text-xs text-gray-500">Assistant enables you to manage visitors via natural language</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/60">
             {messages.length === 0 && (
               <div className="text-center py-10">
                 <div className="inline-block p-4 bg-blue-50 rounded-full mb-4">
@@ -126,6 +132,16 @@ export default function Chat() {
                 </div>
               </div>
             ))}
+
+            {loading && (
+              <div className="flex justify-start">
+                <div className="max-w-[75%] rounded-2xl px-5 py-3 shadow-sm text-sm bg-white border border-slate-200 text-slate-700">
+                  Thinking...
+                </div>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
           </div>
 
           <div className="p-4 bg-white border-t border-gray-100">

@@ -13,41 +13,48 @@ export default function Profile() {
     setProfile(data);
   };
 
-  if (!profile) return (
-    <div className="flex justify-center items-center py-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    </div>
-  );
+  if (!profile)
+    return (
+      <div className="flex justify-center items-center py-10">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-slate-900" />
+      </div>
+    );
+
+  const initial = (profile.display_name?.trim()?.[0] || "U").toUpperCase();
 
   return (
-    <div className="bg-white rounded-lg ">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
       <div className="flex items-center space-x-4 mb-6">
-        <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-2xl font-bold">
-          {profile.display_name?.charAt(0).toUpperCase() || 'U'}
+        <div className="h-14 w-14 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 text-xl font-semibold">
+          {initial}
         </div>
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">{profile.display_name}</h2>
-          <p className="text-sm text-gray-500 capitalize">{profile.role}</p>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-slate-900 truncate">{profile.display_name || "User"}</h2>
+          <span className="inline-flex items-center mt-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 capitalize">
+            {profile.role}
+          </span>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex border-b border-gray-50 pb-3">
-          <span className="text-gray-500 w-24 text-sm">Email</span>
-          <span className="text-gray-800 font-medium text-sm">{profile.email}</span>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <span className="text-slate-500 text-sm">Email</span>
+          <span className="text-slate-900 font-medium text-sm">{profile.email}</span>
         </div>
 
-        <div className="flex border-b border-gray-50 pb-3">
-          <span className="text-gray-500 w-24 text-sm">Phone</span>
-          <span className="text-gray-800 font-medium text-sm">{profile.phone || 'Not set'}</span>
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <span className="text-slate-500 text-sm">Phone</span>
+          <span className="text-slate-900 font-medium text-sm">{profile.phone || "Not set"}</span>
         </div>
 
         {profile.household && (
-          <div className="bg-gray-50 rounded-lg p-4 mt-4">
-            <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Household Details</h4>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-900 font-medium">{profile.household.name}</span>
-              <span className="bg-white border border-gray-200 px-2 py-1 rounded text-xs font-mono text-gray-600">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 mt-4">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Household Details
+            </h4>
+            <div className="flex justify-between items-center gap-3">
+              <span className="text-slate-900 font-medium truncate">{profile.household.name}</span>
+              <span className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-mono text-slate-700">
                 {profile.household.flat_no}
               </span>
             </div>
