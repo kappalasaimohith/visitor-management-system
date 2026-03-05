@@ -35,7 +35,6 @@ export default function Dashboard() {
         return;
       }
 
-      // get current user's household_id
       const { data: userRow, error: userErr } = await supabase
         .from("users")
         .select("household_id")
@@ -51,13 +50,11 @@ export default function Dashboard() {
 
       const hh = userRow?.household_id;
       if (!hh) {
-        // same behaviour as My Visitors when no household
         setVisitors([]);
         setLoadingVisitors(false);
         return;
       }
 
-      // load visitors for this household only (same as ResidentVisitorList)
       const { data, error: vErr } = await supabase
         .from("visitors")
         .select("*")
@@ -92,28 +89,28 @@ export default function Dashboard() {
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = confirm('Delete your account? This is irreversible.');
+    const confirmed = confirm("Delete your account? This is irreversible.");
     if (!confirmed) return;
 
     try {
-      const API = import.meta.env.VITE_API_URL || '';
+      const API = import.meta.env.VITE_API_URL || "";
       const resp = await fetch(`${API}/api/users/delete`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
       });
 
-      if (!resp.ok) throw new Error('Delete failed');
+      if (!resp.ok) throw new Error("Delete failed");
     } catch (err) {
       console.error(err);
-      alert('Delete failed');
+      alert("Delete failed");
     }
 
     try {
-      await supabase.auth.signOut({ scope: 'global' });
+      await supabase.auth.signOut({ scope: "global" });
     } catch (err) {
-      console.error('Logout failed:', err);
+      console.error("Logout failed:", err);
     }
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   const getStatusColor = (status) => {
@@ -152,8 +149,11 @@ export default function Dashboard() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-500 mt-1">Overview of your visitors and activity</p>
+            <p className="text-gray-500 mt-1">
+              Overview of your visitors and activity
+            </p>
           </div>
+
           <button
             className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 font-medium transition-colors shadow-sm"
             onClick={() => {
@@ -166,12 +166,17 @@ export default function Dashboard() {
         </div>
 
         <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Visitors</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">
+            Recent Visitors
+          </h2>
 
           {loadingVisitors ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                <div
+                  key={i}
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 p-5"
+                >
                   <div className="animate-pulse">
                     <div className="flex justify-between items-start gap-3">
                       <div className="h-4 w-36 bg-slate-100 rounded" />
@@ -217,50 +222,53 @@ export default function Dashboard() {
             </div>
           )}
         </section>
+      </main>
 
-        {showProfile && profile && (
-          <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-              <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                <div
-                  className="absolute inset-0 bg-black/40"
-                  onClick={() => setShowProfile(false)}
-                />
-              </div>
-              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-              <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <div className="bg-white p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">Your Profile</h3>
-                    <button onClick={() => setShowProfile(false)} className="text-gray-400 hover:text-gray-500">
-                      <span className="text-2xl">&times;</span>
-                    </button>
-                  </div>
-                  <div className="mt-2">
-                    <Profile />
-                  </div>
-                </div>
-                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                  <button
-                    type="button"
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm"
-                    onClick={handleDeleteAccount}
-                  >
-                    Delete Account
-                  </button>
-                  <button
-                    type="button"
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                    onClick={() => setShowProfile(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
+      {/* UPDATED PROFILE MODAL */}
+      {showProfile && profile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          
+          {/* Overlay */}
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => setShowProfile(false)}
+          />
+
+          {/* Modal */}
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 z-10">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Your Profile
+              </h3>
+              <button
+                onClick={() => setShowProfile(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                &times;
+              </button>
+            </div>
+
+            <Profile />
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={handleDeleteAccount}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete Account
+              </button>
+
+              <button
+                onClick={() => setShowProfile(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
             </div>
           </div>
-        )}
-      </main>
+
+        </div>
+      )}
     </div>
   );
 }
