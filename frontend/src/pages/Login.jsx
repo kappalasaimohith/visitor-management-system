@@ -52,6 +52,7 @@ export default function Login() {
         navigate("/dashboard", { replace: true });
       }
     } catch (err) {
+      console.error(err);
       setInfo("Login failed. Try again later.");
     } finally {
       setLoading(false);
@@ -107,9 +108,8 @@ export default function Login() {
 
           <button
             type="submit"
-            className={`w-full py-3 rounded-lg text-white font-semibold transition ${
-              loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-            }`}
+            className={`w-full py-3 rounded-lg text-white font-semibold transition ${loading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+              }`}
             disabled={loading}
           >
             {loading ? "Logging in..." : "Login"}

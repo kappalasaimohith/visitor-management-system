@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import Navbar from "../components/Navbar";
 
-export default function ResidentVisitorList({ user }) {
+export default function ResidentVisitorList() {
   const [visitors, setVisitors] = useState([]);
   const [householdId, setHouseholdId] = useState(null);
 
@@ -95,7 +95,6 @@ export default function ResidentVisitorList({ user }) {
     return () => {
       supabase.removeChannel(sub);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // keep ref in sync

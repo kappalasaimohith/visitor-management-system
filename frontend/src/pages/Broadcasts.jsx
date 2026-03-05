@@ -95,6 +95,7 @@ export default function Broadcasts() {
         alert('Failed to send broadcast');
       }
     } catch (err) {
+      console.error(err);
       alert('Network error');
     } finally {
       setLoading(false);
@@ -170,9 +171,8 @@ export default function Broadcasts() {
             {broadcasts.map((b) => (
               <div
                 key={b.id}
-                className={`bg-white rounded-2xl shadow-sm border p-5 ${
-                  b.is_urgent ? "border-rose-200 bg-rose-50/30" : "border-slate-200"
-                }`}
+                className={`bg-white rounded-2xl shadow-sm border p-5 ${b.is_urgent ? "border-rose-200 bg-rose-50/30" : "border-slate-200"
+                  }`}
               >
                 <div className="flex justify-between items-start gap-4 mb-2">
                   <h3 className={`font-semibold text-lg ${b.is_urgent ? "text-rose-700" : "text-slate-900"}`}>

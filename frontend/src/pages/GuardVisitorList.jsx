@@ -6,7 +6,6 @@ export default function GuardVisitorList() {
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [isGuardOrAdmin, setIsGuardOrAdmin] = useState(false);
 
   useEffect(() => {
     fetchVisitors();
@@ -33,21 +32,9 @@ export default function GuardVisitorList() {
       }
 
       const API = import.meta.env.VITE_API_URL || "";
-      // Get profile (role) + visitors in parallel
-      const [profileResp, visitorsResp] = await Promise.all([
-        fetch(`${API}/api/users/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API}/api/visitors`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      const profileJson = await profileResp.json();
-      if (profileResp.ok) {
-        const role = profileJson.user?.role;
-        setIsGuardOrAdmin(role === "guard" || role === "admin");
-      }
+      const visitorsResp = await fetch(`${API}/api/visitors`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       const visitorsJson = await visitorsResp.json();
       if (!visitorsResp.ok) {
