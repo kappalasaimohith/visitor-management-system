@@ -41,8 +41,7 @@ export default function Navbar() {
         { to: "/resident-visitors", label: "My Visitors" }
       );
     }
-    
-    // Gate only for guard/admin
+
     if (profile && (profile.role === "guard" || profile.role === "admin")) {
       items.push({ to: "/guard-visitors", label: "Gate" });
     }
@@ -53,6 +52,7 @@ export default function Navbar() {
     );
 
     if (profile && profile.role === "admin") items.push({ to: "/audit", label: "Audit" });
+
     return items;
   }, [profile]);
 
@@ -77,6 +77,8 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
+
+          {/* Left: Logo */}
           <div className="flex items-center gap-3">
             <Link
               to="/dashboard"
@@ -84,15 +86,18 @@ export default function Navbar() {
             >
               VMS
             </Link>
+          </div>
 
-            <div className="hidden md:flex md:space-x-1">
+          {/* Right: Links + User */}
+          <div className="flex items-center gap-6 ml-auto">
+            {/* Navigation links (desktop only) */}
+            <div className="hidden md:flex md:space-x-2 lg:space-x-3">
               {links.map((l) => (
                 <NavItem key={l.to} to={l.to} label={l.label} />
               ))}
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
+            {/* User avatar + name */}
             <div className="hidden md:flex items-center gap-2">
               <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-semibold text-slate-700">
                 {initial}
@@ -100,6 +105,7 @@ export default function Navbar() {
               <div className="text-sm text-slate-600">{profile?.display_name}</div>
             </div>
 
+            {/* Logout button */}
             <button
               onClick={logout}
               className="hidden md:inline-flex bg-white text-rose-700 border border-rose-200 hover:bg-rose-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -107,6 +113,7 @@ export default function Navbar() {
               Logout
             </button>
 
+            {/* Mobile menu toggle */}
             <button
               type="button"
               className="md:hidden inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -119,6 +126,7 @@ export default function Navbar() {
           </div>
         </div>
 
+        {/* Mobile menu */}
         {mobileOpen && (
           <div className="md:hidden pb-4">
             <div className="mt-2 rounded-2xl border border-slate-200 bg-white shadow-sm p-2 flex flex-col gap-1">

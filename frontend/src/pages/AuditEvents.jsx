@@ -93,35 +93,68 @@ export default function AuditEvents() {
     };
   }, [fetchEvents]);
 
+  const renderDetails = useCallback((e) => {
+    if (!e.payload) return "—";
+    const type = (e.type || "").toLowerCase();
+    switch (type) {
+      case "create":
+        return `New visitor. ${e.payload.visitor?.purpose ? `Purpose: ${e.payload.visitor.purpose}` : ""}`;
+      case "approval":
+        return `Approved (was ${e.payload.prevStatus || "pending"})`;
+      case "deny":
+        return `Denied. Reason: ${e.payload.reason || "Not provided"}`;
+      case "delete":
+        return `Deleted (was ${e.payload.prevStatus || "unknown"})`;
+      case "checkin":
+      case "check_in":
+        return "Checked in";
+      case "checkout":
+      case "check_out":
+        return "Checked out";
+      case "update":
+        return `Updated. ${e.payload.note || ""}`;
+      default:
+        return e.payload.note || e.payload.reason || JSON.stringify(e.payload);
+    }
+  }, []);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return events;
 
     return events.filter(e => {
+      const details = renderDetails(e);
       const hay = `
         ${e.type ?? ""}
         ${e.actorName ?? ""}
         ${e.visitorName ?? ""}
-        ${e.payload?.note ?? ""}
-        ${e.payload?.reason ?? ""}
+        ${details}
       `.toLowerCase();
 
       return hay.includes(q);
     });
-  }, [events, query]);
+  }, [events, query, renderDetails]);
 
   const getEventColor = (type) => {
-    switch (type) {
-      case "CHECK_IN":
-        return "bg-green-100 text-green-700";
-      case "CHECK_OUT":
-        return "bg-yellow-100 text-yellow-700";
-      case "DELETE":
+    switch ((type || "").toLowerCase()) {
+      case "create":
+        return "bg-emerald-100 text-emerald-700";
+      case "approval":
+        return "bg-blue-100 text-blue-700";
+      case "deny":
         return "bg-red-100 text-red-700";
-      case "UPDATE":
+      case "checkin":
+      case "check_in":
+        return "bg-green-100 text-green-700";
+      case "checkout":
+      case "check_out":
+        return "bg-yellow-100 text-yellow-700";
+      case "delete":
+        return "bg-gray-100 text-gray-700";
+      case "update":
         return "bg-indigo-100 text-indigo-700";
       default:
-        return "bg-blue-100 text-blue-700";
+        return "bg-slate-100 text-slate-700";
     }
   };
 
@@ -231,9 +264,7 @@ export default function AuditEvents() {
                           className="truncate"
                           title={JSON.stringify(e.payload, null, 2)}
                         >
-                          {e.payload?.note ||
-                            e.payload?.reason ||
-                            "—"}
+                          {renderDetails(e)}
                         </div>
                       </td>
                     </tr>
