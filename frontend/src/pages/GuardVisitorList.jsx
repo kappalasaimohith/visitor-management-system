@@ -6,6 +6,7 @@ export default function GuardVisitorList() {
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [isGuardOrAdmin, setIsGuardOrAdmin] = useState(false);
 
   useEffect(() => {
     fetchVisitors();
@@ -22,16 +23,66 @@ export default function GuardVisitorList() {
 
   const fetchVisitors = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("visitors")
-      .select(`*, host_household:households(flat_no, name)`)
-      .in("status", ["pending", "approved", "checked_in"])
-      .order("created_at", { ascending: false });
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) {
+        setVisitors([]);
+        setLoading(false);
+        return;
+      }
 
-    if (error) console.error(error);
-    else {
-      try {
-        const enriched = await Promise.all((data ?? []).map(async (v) => {
+      const API = import.meta.env.VITE_API_URL || "";
+      // Get profile (role) + visitors in parallel
+      const [profileResp, visitorsResp] = await Promise.all([
+        fetch(`${API}/api/users/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API}/api/visitors`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const profileJson = await profileResp.json();
+      if (profileResp.ok) {
+        const role = profileJson.user?.role;
+        setIsGuardOrAdmin(role === "guard" || role === "admin");
+      }
+
+      const visitorsJson = await visitorsResp.json();
+      if (!visitorsResp.ok) {
+        console.error("GuardVisitorList load error", visitorsJson);
+        setVisitors([]);
+        setLoading(false);
+        return;
+      }
+
+      // Backend has already enforced RBAC; now keep only relevant statuses for gate view
+      const base = (visitorsJson.visitors || []).filter((v) =>
+        ["pending", "approved", "checked_in"].includes(String(v.status || "").toLowerCase())
+      );
+
+      // Enrich with household info (flat_no, name) without touching visitors table directly
+      const hostIds = [
+        ...new Set(base.map((v) => v.host_household_id).filter(Boolean)),
+      ];
+      let householdsMap = {};
+      if (hostIds.length) {
+        const { data: households, error: hErr } = await supabase
+          .from("households")
+          .select("id, flat_no, name")
+          .in("id", hostIds);
+        if (!hErr) {
+          householdsMap = Object.fromEntries(
+            (households || []).map((h) => [h.id, h])
+          );
+        }
+      }
+
+      // (Optional) keep "created_by_name" enrichment as before
+      const enriched = await Promise.all(
+        base.map(async (v) => {
+          let created_by_name = null;
           try {
             const { data: ev } = await supabase
               .from("events")
@@ -41,28 +92,36 @@ export default function GuardVisitorList() {
               .limit(1)
               .maybeSingle();
 
-            let creatorName = null;
             if (ev?.actor_user_id) {
               const { data: u } = await supabase
                 .from("users")
                 .select("display_name")
                 .eq("id", ev.actor_user_id)
                 .maybeSingle();
-              creatorName = u?.display_name;
+              created_by_name = u?.display_name;
             } else if (ev?.payload) {
-              creatorName = ev.payload?.actorName || ev.payload?.actor?.displayName;
+              created_by_name =
+                ev.payload?.actorName || ev.payload?.actor?.displayName;
             }
-            return { ...v, created_by_name: creatorName };
-          } catch (err) {
-            return { ...v, created_by_name: null };
+          } catch {
+            created_by_name = null;
           }
-        }));
-        setVisitors(enriched);
-      } catch (err) {
-        setVisitors(data ?? []);
-      }
+
+          return {
+            ...v,
+            host_household: householdsMap[v.host_household_id] || null,
+            created_by_name,
+          };
+        })
+      );
+
+      setVisitors(enriched);
+    } catch (err) {
+      console.error(err);
+      setVisitors([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getStatusBadge = (status) => {

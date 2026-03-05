@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, allowedRoles }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -11,9 +11,24 @@ export default function ProtectedRoute({ children }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate("/", { replace: true });
-      } else {
-        setLoading(false);
+        return;
       }
+
+      // Optional role check
+      if (allowedRoles && allowedRoles.length > 0) {
+        const { data: userRow, error } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (error || !userRow || !allowedRoles.includes(userRow.role)) {
+          navigate("/dashboard", { replace: true });
+          return;
+        }
+      }
+
+      setLoading(false);
     };
 
     checkAuth();
@@ -23,7 +38,7 @@ export default function ProtectedRoute({ children }) {
     });
 
     return () => listener.subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, allowedRoles]);
 
   if (loading) {
     return (

@@ -12,13 +12,15 @@ export default function ResidentVisitorList({ user }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Prevent stale householdId inside realtime callback
+  // track current household for realtime refresh
   const householdIdRef = useRef(null);
 
+  // fetch visitors for a given household (frontend Supabase, filtered)
   const fetchVisitors = async (hhId) => {
     if (!hhId) return;
     setLoading(true);
     setErrorMsg("");
+
     const { data, error } = await supabase
       .from("visitors")
       .select("*")
@@ -28,6 +30,7 @@ export default function ResidentVisitorList({ user }) {
     if (error) {
       console.error(error);
       setErrorMsg("Could not load visitors. Please try again.");
+      setVisitors([]);
     } else {
       setVisitors(data ?? []);
     }
@@ -39,6 +42,7 @@ export default function ResidentVisitorList({ user }) {
       setLoading(true);
       setErrorMsg("");
 
+      // get current auth user
       const { data: sessionData } = await supabase.auth.getSession();
       const uid = sessionData?.session?.user?.id;
       if (!uid) {
@@ -47,6 +51,7 @@ export default function ResidentVisitorList({ user }) {
         return;
       }
 
+      // load user row to get household_id
       const { data: userRow, error } = await supabase
         .from("users")
         .select("household_id")
@@ -63,8 +68,10 @@ export default function ResidentVisitorList({ user }) {
       const hh = userRow?.household_id ?? null;
       setHouseholdId(hh);
       householdIdRef.current = hh;
-      if (hh) await fetchVisitors(hh);
-      else {
+
+      if (hh) {
+        await fetchVisitors(hh);
+      } else {
         setLoading(false);
         setErrorMsg("No household is linked to your account.");
       }
@@ -72,6 +79,7 @@ export default function ResidentVisitorList({ user }) {
 
     init();
 
+    // realtime refresh for this household
     const sub = supabase
       .channel("visitors-changes")
       .on(
@@ -90,6 +98,7 @@ export default function ResidentVisitorList({ user }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // keep ref in sync
   useEffect(() => {
     householdIdRef.current = householdId;
   }, [householdId]);
@@ -111,8 +120,16 @@ export default function ResidentVisitorList({ user }) {
         },
         body: JSON.stringify({ visitorId }),
       });
-      if (!resp.ok) return alert("Failed to delete");
-      fetchVisitors(householdIdRef.current);
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => null);
+        const msg = data?.error || "Failed to delete";
+        alert(msg);
+        return;
+      }
+
+      const hh = householdIdRef.current;
+      if (hh) fetchVisitors(hh);
     } catch (err) {
       console.error(err);
       alert("Network error");
@@ -135,11 +152,15 @@ export default function ResidentVisitorList({ user }) {
       const API = import.meta.env.VITE_API_URL || "";
       const resp = await fetch(`${API}${endpoint}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(body),
       });
       if (!resp.ok) return alert("Failed");
-      fetchVisitors(householdIdRef.current);
+      const hh = householdIdRef.current;
+      if (hh) fetchVisitors(hh);
     } catch (err) {
       console.error(err);
       alert("Network error");
@@ -147,7 +168,8 @@ export default function ResidentVisitorList({ user }) {
   };
 
   const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
+    const s = String(status ?? "").toLowerCase();
+    switch (s) {
       case "approved":
         return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
       case "rejected":
@@ -155,8 +177,10 @@ export default function ResidentVisitorList({ user }) {
         return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
       case "pending":
         return "bg-amber-50 text-amber-800 ring-1 ring-amber-200";
+      case "checked_in":
       case "checked-in":
         return "bg-sky-50 text-sky-700 ring-1 ring-sky-200";
+      case "checked_out":
       case "checked-out":
         return "bg-slate-50 text-slate-700 ring-1 ring-slate-200";
       default:
@@ -171,7 +195,10 @@ export default function ResidentVisitorList({ user }) {
     if (!ts) return "—";
     const d = new Date(ts);
     if (Number.isNaN(d.getTime())) return String(ts);
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(d);
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(d);
   };
 
   const filteredVisitors = useMemo(() => {
@@ -181,9 +208,9 @@ export default function ResidentVisitorList({ user }) {
         !q ||
         v?.name?.toLowerCase()?.includes(q) ||
         v?.purpose?.toLowerCase()?.includes(q);
+      const statusLower = String(v?.status ?? "").toLowerCase();
       const matchesStatus =
-        statusFilter === "all" ||
-        String(v?.status ?? "").toLowerCase() === statusFilter;
+        statusFilter === "all" || statusLower === statusFilter;
       return matchesQuery && matchesStatus;
     });
   }, [visitors, query, statusFilter]);
@@ -237,7 +264,7 @@ export default function ResidentVisitorList({ user }) {
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="denied">Denied</option>
-                <option value="checked-in">Checked-in</option>
+                <option value="checked_in">Checked-in</option>
                 <option value="checked_out">Checked-out</option>
               </select>
             </div>
@@ -320,66 +347,74 @@ export default function ResidentVisitorList({ user }) {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredVisitors.map((v) => (
-              <div
-                key={v.id}
-                className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between hover:shadow-md transition-shadow"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-base text-slate-900 truncate">
-                        {v.name}
-                      </h3>
-                      <p className="text-sm text-slate-600 mt-0.5 line-clamp-2">
-                        {v.purpose || "—"}
-                      </p>
+            {filteredVisitors.map((v) => {
+              const statusLower = String(v.status ?? "").toLowerCase();
+              const canDelete =
+                statusLower === "pending" || statusLower === "denied";
+
+              return (
+                <div
+                  key={v.id}
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between hover:shadow-md transition-shadow"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-base text-slate-900 truncate">
+                          {v.name}
+                        </h3>
+                        <p className="text-sm text-slate-600 mt-0.5 line-clamp-2">
+                          {v.purpose || "—"}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusColor(
+                          v.status
+                        )}`}
+                        title={formatStatus(v.status)}
+                      >
+                        {formatStatus(v.status)}
+                      </span>
                     </div>
-                    <span
-                      className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${getStatusColor(
-                        v.status
-                      )}`}
-                      title={formatStatus(v.status)}
-                    >
-                      {formatStatus(v.status)}
-                    </span>
+
+                    <div className="text-xs text-slate-500">
+                      Requested:{" "}
+                      <span className="text-slate-700">
+                        {formatDeviceDateTime(v.created_at)}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="text-xs text-slate-500">
-                    Requested:{" "}
-                    <span className="text-slate-700">
-                      {formatDeviceDateTime(v.created_at)}
-                    </span>
+                  <div className="flex gap-2 mt-4 border-t border-slate-100 pt-4">
+                    {statusLower === "pending" && (
+                      <>
+                        <button
+                          className="flex-1 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:bg-emerald-700 active:bg-emerald-800"
+                          onClick={() => updateVisitorStatus(v.id, "approved")}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="flex-1 rounded-lg bg-rose-600 text-white px-3 py-2 text-sm font-medium hover:bg-rose-700 active:bg-rose-800"
+                          onClick={() => updateVisitorStatus(v.id, "denied")}
+                        >
+                          Deny
+                        </button>
+                      </>
+                    )}
+
+                    {canDelete && (
+                      <button
+                        className="rounded-lg border border-slate-200 bg-white text-slate-700 px-3 py-2 text-sm font-medium hover:bg-slate-50 active:bg-slate-100"
+                        onClick={() => deleteVisitor(v.id)}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex gap-2 mt-4 border-t border-slate-100 pt-4">
-                  {String(v.status ?? "").toLowerCase() === "pending" && (
-                    <>
-                      <button
-                        className="flex-1 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:bg-emerald-700 active:bg-emerald-800"
-                        onClick={() => updateVisitorStatus(v.id, "approved")}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="flex-1 rounded-lg bg-rose-600 text-white px-3 py-2 text-sm font-medium hover:bg-rose-700 active:bg-rose-800"
-                        onClick={() => updateVisitorStatus(v.id, "denied")}
-                      >
-                        Deny
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    className="rounded-lg border border-slate-200 bg-white text-slate-700 px-3 py-2 text-sm font-medium hover:bg-slate-50 active:bg-slate-100"
-                    onClick={() => deleteVisitor(v.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

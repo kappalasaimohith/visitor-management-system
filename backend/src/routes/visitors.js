@@ -3,56 +3,35 @@ const router = express.Router();
 import supabaseAdmin from '../supabaseClient.js';
 import notify from '../notify.js';
 
-// GET /api/visitors - List visitors with RBAC
+// GET all visitors - filtered by role
 router.get('/', async (req, res) => {
-  const { profile } = req;
-  const limit = parseInt(req.query.limit || '100', 10);
-
   try {
-    if (!profile) return res.status(403).json({ error: 'Missing profile' });
-
-    const isAdmin = (profile.role === 'admin') || (Array.isArray(profile.roles) && profile.roles.includes('admin'));
-    const isGuard = (profile.role === 'guard') || (Array.isArray(profile.roles) && profile.roles.includes('guard'));
-
-    if (isAdmin) {
-      // Admin can see all visitors
-      const { data, error } = await supabaseAdmin
-        .from('visitors')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (error) return res.status(500).json({ error: error.message });
-      return res.json({ visitors: data });
+    const { profile } = req;
+    
+    if (!profile) {
+      return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    if (isGuard) {
-      // Guards see approved and checked-in visitors
-      const { data, error } = await supabaseAdmin
-        .from('visitors')
-        .select('*')
-        .in('status', ['approved', 'checked_in'])
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (error) return res.status(500).json({ error: error.message });
-      return res.json({ visitors: data });
-    }
-
-    // Residents see only their household's visitors
+    const role = profile.role || (Array.isArray(profile.roles) ? profile.roles[0] : null);
     const householdId = profile.household_id;
-    if (!householdId) return res.status(403).json({ error: 'Resident missing household' });
 
-    const { data, error } = await supabaseAdmin
-      .from('visitors')
-      .select('*')
-      .eq('host_household_id', householdId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (error) return res.status(500).json({ error: error.message });
-    return res.json({ visitors: data });
+    let query = supabaseAdmin.from('visitors').select('*');
 
-  } catch (err) {
-    console.error('visitors list error', err);
-    return res.status(500).json({ error: 'Failed to fetch visitors' });
+    // Residents can only see visitors to their household
+    if (role === 'resident') {
+      if (!householdId) {
+        return res.status(403).json({ error: 'Resident has no associated household' });
+      }
+      query = query.eq('host_household_id', householdId);
+    }
+    // Guards and admins can see all visitors (no filter applied)
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ visitors: data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

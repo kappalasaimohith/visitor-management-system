@@ -47,7 +47,7 @@ function App() {
       <Route
         path="/audit"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["admin"]}>
             <AuditEvents />
           </ProtectedRoute>
         }
@@ -71,7 +71,7 @@ function App() {
       <Route
         path="/guard-visitors"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["guard", "admin"]}>
             <GuardVisitorList user={{}} />
           </ProtectedRoute>
         }

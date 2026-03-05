@@ -26,17 +26,67 @@ export default function Dashboard() {
 
   const fetchVisitors = async () => {
     setLoadingVisitors(true);
-    const { data, error } = await supabase.from("visitors").select("*").order("created_at", { ascending: false });
-    if (error) console.error(error);
-    else setVisitors(data || []);
-    setLoadingVisitors(false);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const uid = sessionData?.session?.user?.id;
+      if (!uid) {
+        setVisitors([]);
+        setLoadingVisitors(false);
+        return;
+      }
+
+      // get current user's household_id
+      const { data: userRow, error: userErr } = await supabase
+        .from("users")
+        .select("household_id")
+        .eq("id", uid)
+        .maybeSingle();
+
+      if (userErr) {
+        console.error("Dashboard: failed to load user", userErr);
+        setVisitors([]);
+        setLoadingVisitors(false);
+        return;
+      }
+
+      const hh = userRow?.household_id;
+      if (!hh) {
+        // same behaviour as My Visitors when no household
+        setVisitors([]);
+        setLoadingVisitors(false);
+        return;
+      }
+
+      // load visitors for this household only (same as ResidentVisitorList)
+      const { data, error: vErr } = await supabase
+        .from("visitors")
+        .select("*")
+        .eq("host_household_id", hh)
+        .order("created_at", { ascending: false });
+
+      if (vErr) {
+        console.error("Dashboard visitors error", vErr);
+        setVisitors([]);
+      } else {
+        setVisitors(data || []);
+      }
+    } catch (err) {
+      console.error("Dashboard visitors error", err);
+      setVisitors([]);
+    } finally {
+      setLoadingVisitors(false);
+    }
   };
 
   const fetchProfile = async () => {
     const { data: sessionData } = await supabase.auth.getSession();
     const uid = sessionData?.session?.user?.id;
     if (!uid) return;
-    const { data, error } = await supabase.from('users').select('*').eq('id', uid).maybeSingle();
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", uid)
+      .maybeSingle();
     if (error) console.error(error);
     else setProfile(data);
   };
@@ -67,13 +117,23 @@ export default function Dashboard() {
   };
 
   const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'checked-in': return 'bg-blue-100 text-blue-800';
-      case 'checked-out': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+    const s = String(status ?? "").toLowerCase();
+    switch (s) {
+      case "approved":
+        return "bg-green-100 text-green-800";
+      case "rejected":
+      case "denied":
+        return "bg-red-100 text-red-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "checked_in":
+      case "checked-in":
+        return "bg-blue-100 text-blue-800";
+      case "checked_out":
+      case "checked-out":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -131,14 +191,21 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {visitors.map((v) => (
-                <div key={v.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 p-5">
+                <div
+                  key={v.id}
+                  className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 p-5"
+                >
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="font-semibold text-gray-900">{v.name}</h3>
                       <p className="text-sm text-gray-500">{v.purpose}</p>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(v.status)}`}>
-                      {v.status}
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+                        v.status
+                      )}`}
+                    >
+                      {String(v.status ?? "").replace(/[_-]/g, " ")}
                     </span>
                   </div>
                   <div className="text-xs text-gray-400 border-t border-gray-50 pt-3 flex justify-between">

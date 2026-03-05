@@ -41,9 +41,13 @@ export default function Navbar() {
         { to: "/resident-visitors", label: "My Visitors" }
       );
     }
+    
+    // Gate only for guard/admin
+    if (profile && (profile.role === "guard" || profile.role === "admin")) {
+      items.push({ to: "/guard-visitors", label: "Gate" });
+    }
 
     items.push(
-      { to: "/guard-visitors", label: "Gate" },
       { to: "/chat", label: "AI Copilot" },
       { to: "/broadcasts", label: "Broadcasts" }
     );
